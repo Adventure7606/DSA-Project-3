@@ -1,84 +1,250 @@
+#define CATCH_CONFIG_MAIN
 #include <catch2/catch_test_macros.hpp>
+
+#include <sstream>
+#include <string>
+#include <vector>
 #include <iostream>
 
-// change if you choose to use a different header name
 #include "CampusCompass.h"
 
 using namespace std;
 
-// the syntax for defining a test is below. It is important for the name to be
-// unique, but you can group multiple tests with [tags]. A test can have
-// [multiple][tags] using that syntax.
-TEST_CASE("Example Test Name - Change me!", "[tag]") {
-  // instantiate any class members that you need to test here
-  int one = 1;
+static string runCommands(const vector<string>& commands) {
+    CampusCompass compass;
+    REQUIRE(compass.ParseCSV("data/edges.csv", "data/classes.csv"));
 
-  // anything that evaluates to false in a REQUIRE block will result in a
-  // failing test
-  REQUIRE(one == 0); // fix me!
+    ostringstream out;
+    streambuf* oldCout = cout.rdbuf(out.rdbuf());
 
-  // all REQUIRE blocks must evaluate to true for the whole test to pass
-  REQUIRE(false); // also fix me!
+    for (const string& cmd : commands) {
+        compass.ParseCommand(cmd);
+    }
+
+    cout.rdbuf(oldCout);
+    return out.str();
 }
 
-TEST_CASE("Test 2", "[tag]") {
-  // you can also use "sections" to share setup code between tests, for example:
-  int one = 1;
+TEST_CASE("Test 07 hidden style: removeClass edge cases", "[removeClass][hidden]") {
+    vector<string> commands = {
+        "insert \"John Doe\" 11111111 1 3 COP3530 CDA3101 MAC2311",
+        "insert \"John Doe\" 22222222 1 3 COP3530 CDA3101 MAC2311",
+        "insert \"John Doe\" 33333333 1 3 COP3530 CDA3101 MAC2311",
+        "insert \"John Doe\" 44444444 1 2 COP3530 CDA3101",
+        "insert \"John Doe\" 55555555 1 1 PHY2048",
+        "removeClass MAC2311",
+        "removeClass CDA3101",
+        "removeClass PHY2048",
+        "removeClass CEN3031",
+        "removeClass ABC1234"
+    };
 
-  SECTION("num is 2") {
-    int num = one + 1;
-    REQUIRE(num == 2);
-  };
+    string expected =
+        "successful\n"
+        "successful\n"
+        "successful\n"
+        "successful\n"
+        "successful\n"
+        "3\n"
+        "4\n"
+        "1\n"
+        "unsuccessful\n"
+        "unsuccessful\n";
 
-  SECTION("num is 3") {
-    int num = one + 2;
-    REQUIRE(num == 3);
-  };
-
-  // each section runs the setup code independently to ensure that they don't
-  // affect each other
+    REQUIRE(runCommands(commands) == expected);
 }
 
-// Refer to Canvas for a list of required tests. 
-// We encourage you to write more than required to ensure proper functionality, but only the ones on Canvas will be graded.
+TEST_CASE("Test 08 hidden style: unique IDs, 8 digit IDs, bad names, nonexistent edge", "[insert][validation][edge]") {
+    vector<string> commands = {
+        "insert \"Alice Smith\" 12345678 1 1 COP3530",
+        "insert \"Bob Jones\" 12345678 1 1 COP3530",
+        "insert \"Carol\" 1234567 1 1 COP3530",
+        "insert \"D4vid\" 12345679 1 1 COP3530",
+        "checkEdgeStatus 999 1000"
+    };
 
-// See the following for an example of how to easily test your output.
-// Note that while this works, I recommend also creating plenty of unit tests for particular functions within your code.
-// This pattern should only be used for final, end-to-end testing.
+    string expected =
+        "successful\n"
+        "unsuccessful\n"
+        "unsuccessful\n"
+        "unsuccessful\n"
+        "DNE\n";
 
-// This uses C++ "raw strings" and assumes your CampusCompass outputs a string with
-//   the same thing you print.
-TEST_CASE("Example CampusCompass Output Test", "[flag]") {
-  // the following is a "raw string" - you can write the exact input (without
-  //   any indentation!) and it should work as expected
-  // this is based on the input and output of the first public test case
-  string input = R"(6
-insert "Student A" 10000001 1 1 COP3502
-insert "Student B" 10000002 1 1 COP3502
-insert "Student C" 10000003 1 2 COP3502 MAC2311
-dropClass 10000001 COP3502
-remove 10000001
-removeClass COP3502
-)";
+    REQUIRE(runCommands(commands) == expected);
+}
 
-  string expectedOutput = R"(successful
-successful
-successful
-successful
-unsuccessful
-2
-)";
+TEST_CASE("Test 09 hidden style: insert validation for N range and count match", "[insert][validation]") {
+    vector<string> commands = {
+        "insert \"John Doe\" 11111111 1 0",
+        "insert \"John Doe\" 22222222 1 7 COP3530 CDA3101 MAC2311 PHY2048 CEN3031 CIS4301 CNT4007",
+        "insert \"John Doe\" 33333333 1 2 COP3530",
+        "insert \"John Doe\" 44444444 1 2 COP3530 CDA3101"
+    };
 
-  string actualOutput;
+    string expected =
+        "unsuccessful\n"
+        "unsuccessful\n"
+        "unsuccessful\n"
+        "successful\n";
 
-  // somehow pass your input into your CampusCompass and parse it to call the
-  // correct functions, for example:
-  /*
-  CampusCompass c;
-  c.parseInput(input)
-  // this would be some function that sends the output from your class into a string for use in testing
-  actualOutput = c.getStringRepresentation()
-  */
+    REQUIRE(runCommands(commands) == expected);
+}
 
-  REQUIRE(actualOutput == expectedOutput);
+TEST_CASE("Test 10 hidden style: misspelled commands do not break following commands", "[parser][validation]") {
+    vector<string> commands = {
+        "insrt \"John Doe\" 11111111 1 1 COP3530",
+        "insert \"John Doe\" 11111111 1 1 COP3530",
+        "remov 11111111",
+        "remove 11111111"
+    };
+
+    string expected =
+        "unsuccessful\n"
+        "successful\n"
+        "unsuccessful\n"
+        "successful\n";
+
+    REQUIRE(runCommands(commands) == expected);
+}
+
+TEST_CASE("Test 11 hidden style: printShortestEdges unreachable after toggles", "[printShortestEdges][graph]") {
+    vector<string> commands = {
+        "insert \"John Doe\" 11111111 1 1 COP3530",
+        "printShortestEdges 11111111",
+        "toggleEdgesClosure 1 1 2",
+        "toggleEdgesClosure 1 1 4",
+        "printShortestEdges 11111111"
+    };
+
+    string output = runCommands(commands);
+
+    REQUIRE(output.find("successful\n") == 0);
+    REQUIRE(output.find("Time For Shortest Edges: John Doe\n") != string::npos);
+    REQUIRE(output.find("COP3530: ") != string::npos);
+}
+
+TEST_CASE("Test 12 hidden style: remove nonexistent, existing, then double remove invalid", "[remove]") {
+    vector<string> commands = {
+        "remove 11111111",
+        "insert \"John Doe\" 11111111 1 1 COP3530",
+        "remove 11111111",
+        "remove 11111111"
+    };
+
+    string expected =
+        "unsuccessful\n"
+        "successful\n"
+        "successful\n"
+        "unsuccessful\n";
+
+    REQUIRE(runCommands(commands) == expected);
+}
+
+TEST_CASE("Test 13 hidden style: dropClass edge cases", "[dropClass]") {
+    vector<string> commands = {
+        "dropClass 11111111 COP3530",
+        "insert \"John Doe\" 11111111 1 2 COP3530 CDA3101",
+        "dropClass 11111111 MAC2311",
+        "dropClass 11111111 COP3530",
+        "dropClass 11111111 COP3530",
+        "dropClass 11111111 CDA3101",
+        "remove 11111111"
+    };
+
+    string expected =
+        "unsuccessful\n"
+        "successful\n"
+        "unsuccessful\n"
+        "successful\n"
+        "unsuccessful\n"
+        "successful\n"
+        "unsuccessful\n";
+
+    REQUIRE(runCommands(commands) == expected);
+}
+
+TEST_CASE("Test 14 hidden style: printStudentZone on 1 class and multiple classes with toggles", "[printStudentZone]") {
+    vector<string> commands = {
+        "insert \"Solo Student\" 11111111 1 1 COP3530",
+        "printStudentZone 11111111",
+        "insert \"John Doe\" 88887777 5 4 IDS2935 CEN3031 CIS4301 CNT4007",
+        "printStudentZone 88887777",
+        "toggleEdgesClosure 2 5 6 9 10",
+        "toggleEdgesClosure 2 5 6 9 10",
+        "printStudentZone 88887777"
+    };
+
+    string output = runCommands(commands);
+
+    REQUIRE(output.find("successful\nStudent Zone Cost For Solo Student: ") != string::npos);
+    REQUIRE(output.find("Student Zone Cost For John Doe: 20\n") != string::npos);
+}
+
+TEST_CASE("Test 15 hidden style: printShortestEdges after drop and replace", "[printShortestEdges][dropClass][replaceClass]") {
+    vector<string> commands = {
+        "insert \"John Doe\" 11111111 1 3 COP3530 CDA3101 MAC2311",
+        "printShortestEdges 11111111",
+        "dropClass 11111111 MAC2311",
+        "printShortestEdges 11111111",
+        "replaceClass 11111111 CDA3101 PHY2048",
+        "printShortestEdges 11111111"
+    };
+
+    string output = runCommands(commands);
+
+    REQUIRE(output.find("Time For Shortest Edges: John Doe\n") != string::npos);
+    REQUIRE(output.find("COP3530: ") != string::npos);
+}
+
+TEST_CASE("Additional: removeClass repeated removal", "[removeClass]") {
+    vector<string> commands = {
+        "insert \"John Doe\" 11111111 1 2 COP3530 CDA3101",
+        "insert \"Jane Doe\" 22222222 1 1 COP3530",
+        "removeClass COP3530",
+        "removeClass COP3530",
+        "removeClass CDA3101"
+    };
+
+    string expected =
+        "successful\n"
+        "successful\n"
+        "2\n"
+        "unsuccessful\n"
+        "1\n";
+
+    REQUIRE(runCommands(commands) == expected);
+}
+
+TEST_CASE("Additional: removeClass removes student with only class", "[removeClass]") {
+    vector<string> commands = {
+        "insert \"John Doe\" 11111111 1 1 COP3530",
+        "removeClass COP3530",
+        "remove 11111111"
+    };
+
+    string expected =
+        "successful\n"
+        "1\n"
+        "unsuccessful\n";
+
+    REQUIRE(runCommands(commands) == expected);
+}
+
+TEST_CASE("Additional: invalid extra token parsing", "[parser]") {
+    vector<string> commands = {
+        "insert \"John Doe\" 11111111 1 1 COP3530",
+        "removeClass COP3530 extra",
+        "remove 11111111 extra",
+        "dropClass 11111111 COP3530 extra",
+        "replaceClass 11111111 COP3530 CDA3101 extra"
+    };
+
+    string expected =
+        "successful\n"
+        "unsuccessful\n"
+        "unsuccessful\n"
+        "unsuccessful\n"
+        "unsuccessful\n";
+
+    REQUIRE(runCommands(commands) == expected);
 }

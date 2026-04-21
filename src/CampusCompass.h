@@ -48,6 +48,10 @@ private:
     vector<int> ShortestPathNodes(int start, int goal) const;
     int PrintStudentZoneCost(const string& id) const;
 
+    // schedule helpers
+    int TimeToMinutes(const string& time_str) const;
+    bool VerifySchedule(const string& id) const;
+
     // command helpers
     bool InsertStudent(const string& name, const string& id, int residence_ID,
                        const vector<string>& class_codes);
