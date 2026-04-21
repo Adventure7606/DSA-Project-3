@@ -77,6 +77,299 @@ bool CampusCompass::ParseCSV(const string &edges_filepath, const string &classes
     return true;
 }
 
+bool CampusCompass::ParseCommand(const string &command) {
+    if (command.empty()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+
+    stringstream ss(command);
+    string op;
+    ss >> op;
+
+    if (op == "insert") {
+        size_t first_quote = command.find('"');
+        size_t second_quote = command.find('"', first_quote + 1);
+
+        if (first_quote == string::npos || second_quote == string::npos || second_quote <= first_quote + 1) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        string name = command.substr(first_quote + 1, second_quote - first_quote - 1);
+        string rest = command.substr(second_quote + 1);
+        stringstream rest_ss(rest);
+
+        string id;
+        int residence_ID, n;
+
+        if (!(rest_ss >> id >> residence_ID >> n)) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        vector<string> class_codes;
+        string code;
+        while (rest_ss >> code) {
+            class_codes.push_back(code);
+        }
+
+        if ((int)class_codes.size() != n) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        bool ok = InsertStudent(name, id, residence_ID, class_codes);
+        cout << (ok ? "successful" : "unsuccessful") << endl;
+        return ok;
+    }
+
+    else if (op == "remove") {
+        string id;
+        if (!(ss >> id)) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        string extra;
+        if (ss >> extra) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        bool ok = RemoveStudent(id);
+        cout << (ok ? "successful" : "unsuccessful") << endl;
+        return ok;
+    }
+
+    else if (op == "dropClass") {
+        string id, code;
+        if (!(ss >> id >> code)) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        string extra;
+        if (ss >> extra) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        bool ok = DropClass(id, code);
+        cout << (ok ? "successful" : "unsuccessful") << endl;
+        return ok;
+    }
+
+    else if (op == "replaceClass") {
+        string id, old_code, new_code;
+        if (!(ss >> id >> old_code >> new_code)) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        string extra;
+        if (ss >> extra) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        bool ok = ReplaceClass(id, old_code, new_code);
+        cout << (ok ? "successful" : "unsuccessful") << endl;
+        return ok;
+    }
+
+    else if (op == "removeClass") {
+        string code;
+        if (!(ss >> code)) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        string extra;
+        if (ss >> extra) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        int result = RemoveClassFromAll(code);
+        if (result == -1) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        cout << result << endl;
+        return true;
+    }
+
+    else if (op == "toggleEdgesClosure") {
+        int n;
+        if (!(ss >> n) || n < 0) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        vector<int> ids;
+        int x;
+        while (ss >> x) {
+            ids.push_back(x);
+        }
+
+        if ((int)ids.size() != 2 * n) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        for (int i = 0; i < 2 * n; i += 2) {
+            int u = ids[i];
+            int v = ids[i + 1];
+            if (!EdgeExists(u, v)) {
+                cout << "unsuccessful" << endl;
+                return false;
+            }
+        }
+
+        for (int i = 0; i < 2 * n; i += 2) {
+            ToggleEdge(ids[i], ids[i + 1]);
+        }
+
+        cout << "successful" << endl;
+        return true;
+    }
+
+    else if (op == "checkEdgeStatus") {
+        int u, v;
+        if (!(ss >> u >> v)) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        string extra;
+        if (ss >> extra) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        if (!EdgeExists(u, v)) {
+            cout << "DNE" << endl;
+        }
+        else if (IsEdgeClosed(u, v)) {
+            cout << "closed" << endl;
+        }
+        else {
+            cout << "open" << endl;
+        }
+
+        return true;
+    }
+
+    else if (op == "isConnected") {
+        int u, v;
+        if (!(ss >> u >> v)) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        string extra;
+        if (ss >> extra) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        bool ok = IsReachable(u, v);
+        cout << (ok ? "successful" : "unsuccessful") << endl;
+        return ok;
+    }
+
+    else if (op == "printShortestEdges") {
+        string id;
+        if (!(ss >> id)) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        string extra;
+        if (ss >> extra) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        auto it = students.find(id);
+        if (it == students.end()) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        const Student& s = it->second;
+        vector<string> sorted_codes = s.class_codes;
+        sort(sorted_codes.begin(), sorted_codes.end());
+
+        cout << "Time For Shortest Edges: " << s.name << endl;
+        for (const string& code : sorted_codes) {
+            int destination = classes.at(code).location_ID;
+            int cost = ShortestPathCost(s.residence_ID, destination);
+            cout << code << ": " << cost << endl;
+        }
+
+        return true;
+    }
+
+    else if (op == "printStudentZone") {
+        string id;
+        if (!(ss >> id)) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        string extra;
+        if (ss >> extra) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        auto it = students.find(id);
+        if (it == students.end()) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        int cost = PrintStudentZoneCost(id);
+        if (cost == -1) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        cout << "Student Zone Cost For " << it->second.name << ": " << cost << endl;
+        return true;
+    }
+
+    else if (op == "verifySchedule") {
+        string id;
+        if (!(ss >> id)) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        string extra;
+        if (ss >> extra) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        return VerifySchedule(id);
+    }
+
+    else {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+}
+
+void CampusCompass::DebugPrint() const {
+    cout << "Graph nodes: " << graph.size() << endl;
+    cout << "Classes loaded: " << classes.size() << endl;
+    cout << "Students loaded: " << students.size() << endl;
+}
+
 bool CampusCompass::IsValidUFID(const string& id) const {
     static const regex pattern("^[0-9]{8}$");
     return regex_match(id, pattern);
@@ -534,297 +827,4 @@ int CampusCompass::RemoveClassFromAll(const string& class_code) {
 
     if (affected == 0) return -1;
     return affected;
-}
-
-bool CampusCompass::ParseCommand(const string &command) {
-    if (command.empty()) {
-        cout << "unsuccessful" << endl;
-        return false;
-    }
-
-    stringstream ss(command);
-    string op;
-    ss >> op;
-
-    if (op == "insert") {
-        size_t first_quote = command.find('"');
-        size_t second_quote = command.find('"', first_quote + 1);
-
-        if (first_quote == string::npos || second_quote == string::npos || second_quote <= first_quote + 1) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        string name = command.substr(first_quote + 1, second_quote - first_quote - 1);
-        string rest = command.substr(second_quote + 1);
-        stringstream rest_ss(rest);
-
-        string id;
-        int residence_ID, n;
-
-        if (!(rest_ss >> id >> residence_ID >> n)) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        vector<string> class_codes;
-        string code;
-        while (rest_ss >> code) {
-            class_codes.push_back(code);
-        }
-
-        if ((int)class_codes.size() != n) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        bool ok = InsertStudent(name, id, residence_ID, class_codes);
-        cout << (ok ? "successful" : "unsuccessful") << endl;
-        return ok;
-    }
-
-    else if (op == "remove") {
-        string id;
-        if (!(ss >> id)) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        string extra;
-        if (ss >> extra) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        bool ok = RemoveStudent(id);
-        cout << (ok ? "successful" : "unsuccessful") << endl;
-        return ok;
-    }
-
-    else if (op == "dropClass") {
-        string id, code;
-        if (!(ss >> id >> code)) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        string extra;
-        if (ss >> extra) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        bool ok = DropClass(id, code);
-        cout << (ok ? "successful" : "unsuccessful") << endl;
-        return ok;
-    }
-
-    else if (op == "replaceClass") {
-        string id, old_code, new_code;
-        if (!(ss >> id >> old_code >> new_code)) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        string extra;
-        if (ss >> extra) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        bool ok = ReplaceClass(id, old_code, new_code);
-        cout << (ok ? "successful" : "unsuccessful") << endl;
-        return ok;
-    }
-
-    else if (op == "removeClass") {
-        string code;
-        if (!(ss >> code)) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        string extra;
-        if (ss >> extra) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        int result = RemoveClassFromAll(code);
-        if (result == -1) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        cout << result << endl;
-        return true;
-    }
-
-    else if (op == "toggleEdgesClosure") {
-        int n;
-        if (!(ss >> n) || n < 0) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        vector<int> ids;
-        int x;
-        while (ss >> x) {
-            ids.push_back(x);
-        }
-
-        if ((int)ids.size() != 2 * n) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        for (int i = 0; i < 2 * n; i += 2) {
-            int u = ids[i];
-            int v = ids[i + 1];
-            if (!EdgeExists(u, v)) {
-                cout << "unsuccessful" << endl;
-                return false;
-            }
-        }
-
-        for (int i = 0; i < 2 * n; i += 2) {
-            ToggleEdge(ids[i], ids[i + 1]);
-        }
-
-        cout << "successful" << endl;
-        return true;
-    }
-
-    else if (op == "checkEdgeStatus") {
-        int u, v;
-        if (!(ss >> u >> v)) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        string extra;
-        if (ss >> extra) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        if (!EdgeExists(u, v)) {
-            cout << "DNE" << endl;
-        }
-        else if (IsEdgeClosed(u, v)) {
-            cout << "closed" << endl;
-        }
-        else {
-            cout << "open" << endl;
-        }
-
-        return true;
-    }
-
-    else if (op == "isConnected") {
-        int u, v;
-        if (!(ss >> u >> v)) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        string extra;
-        if (ss >> extra) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        bool ok = IsReachable(u, v);
-        cout << (ok ? "successful" : "unsuccessful") << endl;
-        return ok;
-    }
-
-    else if (op == "printShortestEdges") {
-        string id;
-        if (!(ss >> id)) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        string extra;
-        if (ss >> extra) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        auto it = students.find(id);
-        if (it == students.end()) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        const Student& s = it->second;
-        vector<string> sorted_codes = s.class_codes;
-        sort(sorted_codes.begin(), sorted_codes.end());
-
-        cout << "Time For Shortest Edges: " << s.name << endl;
-        for (const string& code : sorted_codes) {
-            int destination = classes.at(code).location_ID;
-            int cost = ShortestPathCost(s.residence_ID, destination);
-            cout << code << ": " << cost << endl;
-        }
-
-        return true;
-    }
-
-    else if (op == "printStudentZone") {
-        string id;
-        if (!(ss >> id)) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        string extra;
-        if (ss >> extra) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        auto it = students.find(id);
-        if (it == students.end()) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        int cost = PrintStudentZoneCost(id);
-        if (cost == -1) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        cout << "Student Zone Cost For " << it->second.name << ": " << cost << endl;
-        return true;
-    }
-
-    else if (op == "verifySchedule") {
-        string id;
-        if (!(ss >> id)) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        string extra;
-        if (ss >> extra) {
-            cout << "unsuccessful" << endl;
-            return false;
-        }
-
-        return VerifySchedule(id);
-    }
-
-    else {
-        cout << "unsuccessful" << endl;
-        return false;
-    }
-}
-
-void CampusCompass::DebugPrint() const {
-    cout << "Graph nodes: " << graph.size() << endl;
-    cout << "Classes loaded: " << classes.size() << endl;
-    cout << "Students loaded: " << students.size() << endl;
 }
