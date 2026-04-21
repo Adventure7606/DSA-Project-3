@@ -7,6 +7,7 @@
 #include <queue>
 #include <climits>
 #include <algorithm>
+#include <functional>
 
 using namespace std;
 
@@ -538,6 +539,35 @@ bool CampusCompass::ParseCommand(const string &command) {
             cout << code << ": " << cost << endl;
         }
 
+        return true;
+    }
+
+    else if (op == "printStudentZone") {
+        string id;
+        if (!(ss >> id)) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        string extra;
+        if (ss >> extra) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        auto it = students.find(id);
+        if (it == students.end()) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        int cost = PrintStudentZoneCost(id);
+        if (cost == -1) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+
+        cout << "Student Zone Cost For " << it->second.name << ": " << cost << endl;
         return true;
     }
 
