@@ -552,3 +552,164 @@ void CampusCompass::DebugPrint() const {
     cout << "Classes loaded: " << classes.size() << endl;
     cout << "Students loaded: " << students.size() << endl;
 }
+
+vector<int> CampusCompass::ShortestPathNodes(int start, int goal) const {
+    if (graph.find(start) == graph.end() || graph.find(goal) == graph.end()) {
+        return {};
+    }
+
+    unordered_map<int, int> dist;
+    unordered_map<int, int> parent;
+
+    for (const auto& pair : graph) {
+        dist[pair.first] = INT_MAX;
+    }
+
+    priority_queue<pair<int, int>, vector<pair<int, int>>, greater<pair<int, int>>> pq;
+    dist[start] = 0;
+    parent[start] = -1;
+    pq.push({0, start});
+
+    while (!pq.empty()) {
+        auto [currDist, u] = pq.top();
+        pq.pop();
+
+        if (currDist > dist[u]) continue;
+
+        for (const Edge& e : graph.at(u)) {
+            if (e.closed) continue;
+
+            int v = e.to;
+            int newDist = currDist + e.weight;
+
+            if (newDist < dist[v]) {
+                dist[v] = newDist;
+                parent[v] = u;
+                pq.push({newDist, v});
+            }
+        }
+    }
+
+    if (dist[goal] == INT_MAX) {
+        return {};
+    }
+
+    vector<int> path;
+    int curr = goal;
+    while (curr != -1) {
+        path.push_back(curr);
+        curr = parent[curr];
+    }
+
+    reverse(path.begin(), path.end());
+    return path;
+}
+
+int CampusCompass::PrintStudentZoneCost(const string& id) const {
+    auto it = students.find(id);
+    if (it == students.end()) return -1;
+
+    const Student& s = it->second;
+
+    unordered_set<int> zone_nodes;
+
+    // Collect all nodes from shortest paths from residence to each class
+    for (const string& code : s.class_codes) {
+        auto class_it = classes.find(code);
+        if (class_it == classes.end()) return -1;
+
+        int class_location = class_it->second.location_ID;
+        vector<int> path = ShortestPathNodes(s.residence_ID, class_location);
+
+        if (path.empty()) {
+            return -1;
+        }
+
+        for (int node : path) {
+            zone_nodes.insert(node);
+        }
+    }
+
+    // Build all valid subgraph edges where both endpoints are in zone_nodes
+    struct MSTEdge {
+        int u;
+        int v;
+        int w;
+    };
+
+    vector<MSTEdge> subgraph_edges;
+    unordered_set<string> seen_edges;
+
+    for (const auto& pair : graph) {
+        int u = pair.first;
+        if (!zone_nodes.count(u)) continue;
+
+        for (const Edge& e : pair.second) {
+            int v = e.to;
+            if (e.closed) continue;
+            if (!zone_nodes.count(v)) continue;
+
+            int a = min(u, v);
+            int b = max(u, v);
+            string key = to_string(a) + "#" + to_string(b);
+
+            if (!seen_edges.count(key)) {
+                seen_edges.insert(key);
+                subgraph_edges.push_back({a, b, e.weight});
+            }
+        }
+    }
+
+    // Kruskal MST
+    vector<MSTEdge> edges = subgraph_edges;
+    sort(edges.begin(), edges.end(), [](const MSTEdge& lhs, const MSTEdge& rhs) {
+        return lhs.w < rhs.w;
+    });
+
+    unordered_map<int, int> parent;
+    unordered_map<int, int> rank_map;
+
+    for (int node : zone_nodes) {
+        parent[node] = node;
+        rank_map[node] = 0;
+    }
+
+    function<int(int)> find_set = [&](int x) {
+        if (parent[x] == x) return x;
+        parent[x] = find_set(parent[x]);
+        return parent[x];
+    };
+
+    auto union_set = [&](int a, int b) {
+        a = find_set(a);
+        b = find_set(b);
+
+        if (a == b) return false;
+
+        if (rank_map[a] < rank_map[b]) {
+            swap(a, b);
+        }
+
+        parent[b] = a;
+        if (rank_map[a] == rank_map[b]) {
+            rank_map[a]++;
+        }
+
+        return true;
+    };
+
+    int mst_cost = 0;
+    int edges_used = 0;
+    int needed = (int)zone_nodes.size() - 1;
+
+    for (const MSTEdge& e : edges) {
+        if (union_set(e.u, e.v)) {
+            mst_cost += e.w;
+            edges_used++;
+            if (edges_used == needed) break;
+        }
+    }
+
+    if (edges_used != needed) return -1;
+    return mst_cost;
+}

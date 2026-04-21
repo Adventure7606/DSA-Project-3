@@ -45,6 +45,8 @@ private:
     void ToggleEdge(int u, int v);
     bool IsReachable(int start, int goal) const;
     int ShortestPathCost(int start, int goal) const;
+    vector<int> ShortestPathNodes(int start, int goal) const;
+    int PrintStudentZoneCost(const string& id) const;
 
     // command helpers
     bool InsertStudent(const string& name, const string& id, int residence_ID,
