@@ -53,8 +53,7 @@ private:
     bool VerifySchedule(const string& id) const;
 
     // command helpers
-    bool InsertStudent(const string& name, const string& id, int residence_ID,
-                       const vector<string>& class_codes);
+    bool InsertStudent(const string& name, const string& id, int residence_ID,const vector<string>& class_codes);
     bool RemoveStudent(const string& id);
     bool DropClass(const string& id, const string& class_code);
     bool ReplaceClass(const string& id, const string& old_code, const string& new_code);
